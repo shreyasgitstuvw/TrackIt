@@ -4,11 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, BookOpen, TrendingUp, Users, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, BookOpen, TrendingUp, Users, CheckCircle, XCircle, Clock, Target } from 'lucide-react';
 import SubjectCard from './SubjectCard';
 import AttendanceStats from './AttendanceStats';
 import MarkAttendanceModal from './MarkAttendanceModal';
 import SubjectManager from './subject-management/SubjectManager';
+import AttendanceCalendar from './calendar/AttendanceCalendar';
+import GoalSetting from './goals/GoalSetting';
 
 interface Subject {
   id: string;
@@ -17,6 +20,7 @@ interface Subject {
   attendedClasses: number;
   color: string;
   lastAttended?: string;
+  attendanceGoal?: number;
 }
 
 const AttendanceDashboard = () => {
@@ -27,7 +31,8 @@ const AttendanceDashboard = () => {
       totalClasses: 45,
       attendedClasses: 42,
       color: 'from-blue-500 to-blue-600',
-      lastAttended: '2024-06-23'
+      lastAttended: '2024-06-23',
+      attendanceGoal: 90
     },
     {
       id: '2',
@@ -35,7 +40,8 @@ const AttendanceDashboard = () => {
       totalClasses: 40,
       attendedClasses: 35,
       color: 'from-purple-500 to-purple-600',
-      lastAttended: '2024-06-22'
+      lastAttended: '2024-06-22',
+      attendanceGoal: 85
     },
     {
       id: '3',
@@ -43,7 +49,8 @@ const AttendanceDashboard = () => {
       totalClasses: 38,
       attendedClasses: 30,
       color: 'from-green-500 to-green-600',
-      lastAttended: '2024-06-21'
+      lastAttended: '2024-06-21',
+      attendanceGoal: 80
     },
     {
       id: '4',
@@ -51,7 +58,8 @@ const AttendanceDashboard = () => {
       totalClasses: 35,
       attendedClasses: 33,
       color: 'from-orange-500 to-orange-600',
-      lastAttended: '2024-06-23'
+      lastAttended: '2024-06-23',
+      attendanceGoal: 85
     },
     {
       id: '5',
@@ -59,7 +67,8 @@ const AttendanceDashboard = () => {
       totalClasses: 42,
       attendedClasses: 38,
       color: 'from-indigo-500 to-indigo-600',
-      lastAttended: '2024-06-22'
+      lastAttended: '2024-06-22',
+      attendanceGoal: 90
     },
     {
       id: '6',
@@ -67,7 +76,8 @@ const AttendanceDashboard = () => {
       totalClasses: 30,
       attendedClasses: 25,
       color: 'from-red-500 to-red-600',
-      lastAttended: '2024-06-20'
+      lastAttended: '2024-06-20',
+      attendanceGoal: 75
     }
   ]);
 
@@ -135,29 +145,80 @@ const AttendanceDashboard = () => {
           />
         </div>
 
-        {/* Subjects Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-          {subjects.map((subject, index) => (
-            <div key={subject.id} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
-              <SubjectCard 
-                subject={subject} 
-                onUpdateAttendance={updateAttendance}
-              />
-            </div>
-          ))}
-        </div>
+        {/* Main Content Tabs */}
+        <div className="animate-fade-in">
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-8">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Calendar
+              </TabsTrigger>
+              <TabsTrigger value="goals" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Goals
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Reports
+              </TabsTrigger>
+            </TabsList>
 
-        {subjects.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects added yet</h3>
-            <p className="text-gray-500 mb-6">Get started by adding your first subject</p>
-            <SubjectManager 
-              subjects={subjects}
-              onUpdateSubjects={setSubjects}
-            />
-          </div>
-        )}
+            <TabsContent value="overview" className="space-y-6">
+              {/* Subjects Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {subjects.map((subject, index) => (
+                  <div key={subject.id} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                    <SubjectCard 
+                      subject={subject} 
+                      onUpdateAttendance={updateAttendance}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {subjects.length === 0 && (
+                <div className="text-center py-12">
+                  <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects added yet</h3>
+                  <p className="text-gray-500 mb-6">Get started by adding your first subject</p>
+                  <SubjectManager 
+                    subjects={subjects}
+                    onUpdateSubjects={setSubjects}
+                  />
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="calendar">
+              <AttendanceCalendar subjects={subjects} />
+            </TabsContent>
+
+            <TabsContent value="goals">
+              <GoalSetting 
+                subjects={subjects}
+                onUpdateSubjects={setSubjects}
+              />
+            </TabsContent>
+
+            <TabsContent value="reports">
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Reports & Analytics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Reports and analytics feature coming soon!</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
 
         {/* Attendance Modal */}
         <MarkAttendanceModal 
