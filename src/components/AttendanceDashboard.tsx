@@ -8,6 +8,7 @@ import { Calendar, BookOpen, TrendingUp, Users, CheckCircle, XCircle, Clock } fr
 import SubjectCard from './SubjectCard';
 import AttendanceStats from './AttendanceStats';
 import MarkAttendanceModal from './MarkAttendanceModal';
+import SubjectManager from './subject-management/SubjectManager';
 
 interface Subject {
   id: string;
@@ -127,6 +128,11 @@ const AttendanceDashboard = () => {
             <CheckCircle className="mr-2 h-5 w-5" />
             Mark Attendance
           </Button>
+          
+          <SubjectManager 
+            subjects={subjects}
+            onUpdateSubjects={setSubjects}
+          />
         </div>
 
         {/* Subjects Grid */}
@@ -140,6 +146,18 @@ const AttendanceDashboard = () => {
             </div>
           ))}
         </div>
+
+        {subjects.length === 0 && (
+          <div className="text-center py-12">
+            <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No subjects added yet</h3>
+            <p className="text-gray-500 mb-6">Get started by adding your first subject</p>
+            <SubjectManager 
+              subjects={subjects}
+              onUpdateSubjects={setSubjects}
+            />
+          </div>
+        )}
 
         {/* Attendance Modal */}
         <MarkAttendanceModal 
