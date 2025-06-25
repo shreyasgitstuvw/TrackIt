@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import MarkAttendanceModal from './MarkAttendanceModal';
 import SubjectManager from './subject-management/SubjectManager';
 import AttendanceCalendar from './calendar/AttendanceCalendar';
 import GoalSetting from './goals/GoalSetting';
+import ReportsAnalytics from './reports/ReportsAnalytics';
 
 interface Subject {
   id: string;
@@ -205,17 +205,7 @@ const AttendanceDashboard = () => {
             </TabsContent>
 
             <TabsContent value="reports">
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Reports & Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Reports and analytics feature coming soon!</p>
-                </CardContent>
-              </Card>
+              <ReportsAnalytics subjects={subjects} />
             </TabsContent>
           </Tabs>
         </div>
