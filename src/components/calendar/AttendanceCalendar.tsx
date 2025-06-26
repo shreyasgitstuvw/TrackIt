@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,16 +56,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ subjects }) => 
   const getDayContent = (date: Date) => {
     const stats = getAttendanceStats(date);
     if (stats.total === 0) return null;
-
-    const percentage = (stats.attended / stats.total) * 100;
-    let bgColor = 'bg-gray-200';
-    
-    if (percentage === 100) bgColor = 'bg-green-500';
-    else if (percentage >= 75) bgColor = 'bg-yellow-500';
-    else if (percentage > 0) bgColor = 'bg-red-500';
-
+    // Show a blue dot for any day with attendance marked
     return (
-      <div className={`w-2 h-2 rounded-full ${bgColor} mx-auto mt-1`} />
+      <div className="w-2 h-2 rounded-full bg-blue-500 mx-auto mt-1" />
     );
   };
 

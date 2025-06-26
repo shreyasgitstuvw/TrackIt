@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -12,6 +12,11 @@ import SubjectManager from './subject-management/SubjectManager';
 import AttendanceCalendar from './calendar/AttendanceCalendar';
 import GoalSetting from './goals/GoalSetting';
 import ReportsAnalytics from './reports/ReportsAnalytics';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Database } from '@/integrations/supabase/types';
+import { useToast } from '@/components/ui/use-toast';
+
 
 interface Subject {
   id: string;
@@ -24,66 +29,170 @@ interface Subject {
 }
 
 const AttendanceDashboard = () => {
-  const [subjects, setSubjects] = useState<Subject[]>([
-    {
-      id: '1',
-      name: 'Mathematics',
-      totalClasses: 45,
-      attendedClasses: 42,
-      color: 'from-blue-500 to-blue-600',
-      lastAttended: '2024-06-23',
-      attendanceGoal: 90
-    },
-    {
-      id: '2',
-      name: 'Physics',
-      totalClasses: 40,
-      attendedClasses: 35,
-      color: 'from-purple-500 to-purple-600',
-      lastAttended: '2024-06-22',
-      attendanceGoal: 85
-    },
-    {
-      id: '3',
-      name: 'Chemistry',
-      totalClasses: 38,
-      attendedClasses: 30,
-      color: 'from-green-500 to-green-600',
-      lastAttended: '2024-06-21',
-      attendanceGoal: 80
-    },
-    {
-      id: '4',
-      name: 'English',
-      totalClasses: 35,
-      attendedClasses: 33,
-      color: 'from-orange-500 to-orange-600',
-      lastAttended: '2024-06-23',
-      attendanceGoal: 85
-    },
-    {
-      id: '5',
-      name: 'Computer Science',
-      totalClasses: 42,
-      attendedClasses: 38,
-      color: 'from-indigo-500 to-indigo-600',
-      lastAttended: '2024-06-22',
-      attendanceGoal: 90
-    },
-    {
-      id: '6',
-      name: 'History',
-      totalClasses: 30,
-      attendedClasses: 25,
-      color: 'from-red-500 to-red-600',
-      lastAttended: '2024-06-20',
-      attendanceGoal: 75
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    const fetchData = async () => {
+      // Fetch subjects
+      const { data: subjectData, error: subjectError } = await supabase
+        .from('subjects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      // Fetch attendance logs
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', user.id);
+      if (!subjectError && subjectData && !attendanceError && attendanceData) {
+        // Recalculate stats for each subject
+        const subjectsWithStats = subjectData.map((subject) => {
+          const logs = attendanceData.filter((a) => a.subject_id === subject.id);
+          const totalClasses = logs.length;
+          const attendedClasses = logs.filter((a) => a.status === 'present').length;
+          // Find the most recent attendance date
+          let lastAttended: string | undefined = undefined;
+          const presentLogs = logs.filter((a) => a.status === 'present');
+          if (presentLogs.length > 0) {
+            lastAttended = presentLogs
+              .map((a) => a.date)
+              .sort()
+              .reverse()[0];
+          }
+          return {
+            id: subject.id,
+            name: subject.name,
+            color: subject.color,
+            totalClasses,
+            attendedClasses,
+            lastAttended,
+            attendanceGoal: subject.attendance_goal,
+          };
+        });
+        setSubjects(subjectsWithStats);
+        setAttendanceRecords(attendanceData);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [user]);
+
+  // Show low attendance notification once per session
+  useEffect(() => {
+    if (loading) return;
+    console.log('Low attendance notification effect running. Subjects:', subjects);
+    if (!subjects.length) return;
+    if (sessionStorage.getItem('lowAttendanceNotified')) return;
+    const lowSubjects = subjects.filter(subject => {
+      const percent = (subject.attendedClasses / subject.totalClasses) * 100;
+      const goal = typeof subject.attendanceGoal === 'number' ? subject.attendanceGoal : 75;
+      return subject.totalClasses > 0 && percent < goal;
+    });
+    if (lowSubjects.length > 0) {
+      toast({
+        title: 'Low Attendance Alert',
+        description: `You are below your attendance goal in: ${lowSubjects.map(s => s.name).join(', ')}`,
+        variant: 'destructive',
+      });
     }
-  ]);
+    sessionStorage.setItem('lowAttendanceNotified', 'true');
+  }, [subjects, toast, loading]);
+
+  // Unmarked days notification
+  useEffect(() => {
+    if (loading) return;
+    if (!attendanceRecords.length) return;
+    const today = new Date().toISOString().split('T')[0];
+    const hasMarkedToday = attendanceRecords.some(
+      (rec) => rec.date === today
+    );
+    if (!hasMarkedToday && !sessionStorage.getItem('unmarkedDaysNotified')) {
+      toast({
+        title: 'Attendance Reminder',
+        description: "You haven't marked your attendance for today. Don't forget to log your classes!",
+        variant: 'warning',
+      });
+      sessionStorage.setItem('unmarkedDaysNotified', 'true');
+    }
+  }, [attendanceRecords, toast, loading]);
+
+  const addSubject = async (subjectData: Omit<Subject, 'id'>) => {
+    if (!user) return;
+    const { name, color, totalClasses, attendedClasses, lastAttended } = subjectData;
+    const { data, error } = await supabase
+      .from('subjects')
+      .insert([{
+        user_id: user.id,
+        name,
+        color,
+        total_classes: totalClasses,
+        attended_classes: attendedClasses,
+        last_attended: lastAttended
+      }])
+      .select();
+    if (!error && data) setSubjects(prev => [
+      ...prev,
+      ...data.map(subject => ({
+        id: subject.id,
+        name: subject.name,
+        color: subject.color,
+        totalClasses: subject.total_classes ?? 0,
+        attendedClasses: subject.attended_classes ?? 0,
+        lastAttended: subject.last_attended ?? undefined,
+        attendanceGoal: subject.attendance_goal,
+      }))
+    ]);
+  };
+
+  const editSubject = async (subjectId: string, subjectData: Omit<Subject, 'id'>) => {
+    const { name, color, totalClasses, attendedClasses, lastAttended } = subjectData;
+    const { data, error } = await supabase
+      .from('subjects')
+      .update({
+        name,
+        color,
+        total_classes: totalClasses,
+        attended_classes: attendedClasses,
+        last_attended: lastAttended
+      })
+      .eq('id', subjectId)
+      .select();
+    if (!error && data) {
+      setSubjects(prev =>
+        prev.map(subject =>
+          subject.id === subjectId
+            ? {
+                id: data[0].id,
+                name: data[0].name,
+                color: data[0].color,
+                totalClasses: data[0].total_classes ?? 0,
+                attendedClasses: data[0].attended_classes ?? 0,
+                lastAttended: data[0].last_attended ?? undefined,
+                attendanceGoal: data[0].attendance_goal,
+              }
+            : subject
+        )
+      );
+    }
+  };
+
+  const deleteSubject = async (subjectId: string) => {
+    const { error } = await supabase
+      .from('subjects')
+      .delete()
+      .eq('id', subjectId);
+    if (!error) setSubjects(prev => prev.filter(subject => subject.id !== subjectId));
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const updateAttendance = (subjectId: string, attended: boolean) => {
+/*  const updateAttendance = (subjectId: string, attended: boolean) => {
     setSubjects(prev => prev.map(subject => 
       subject.id === subjectId 
         ? {
@@ -94,7 +203,7 @@ const AttendanceDashboard = () => {
           }
         : subject
     ));
-  };
+  };*/
 
   const overallAttendance = subjects.reduce((acc, subject) => {
     return acc + (subject.attendedClasses / subject.totalClasses);
@@ -102,6 +211,71 @@ const AttendanceDashboard = () => {
 
   const totalClasses = subjects.reduce((acc, subject) => acc + subject.totalClasses, 0);
   const totalAttended = subjects.reduce((acc, subject) => acc + subject.attendedClasses, 0);
+
+  // New: Track attendance marked today
+  const [attendanceMarked, setAttendanceMarked] = useState<{ [subjectId: string]: boolean }>({});
+
+  // New: Mark attendance and persist to Supabase
+  const markAttendance = async (subjectId: string, attended: boolean) => {
+    console.log('markAttendance called from SubjectCard', subjectId, attended);
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Insert attendance record (allow multiple per day)
+    const { error: attendanceError, data: attendanceData } = await supabase
+      .from('attendance')
+      .insert([
+        {
+          user_id: user.id,
+          subject_id: subjectId,
+          date: today,
+          status: attended ? 'present' : 'absent',
+        }
+      ]);
+
+    console.log('attendance insert', { attendanceError, attendanceData });
+
+    if (attendanceError) {
+      alert('Attendance error: ' + attendanceError.message);
+      return;
+    }
+
+    // Update subject stats in Supabase
+    const subject = subjects.find(s => s.id === subjectId);
+    if (!subject) return;
+    const newTotal = subject.totalClasses + 1;
+    const newAttended = attended ? subject.attendedClasses + 1 : subject.attendedClasses;
+    const { data, error } = await supabase
+      .from('subjects')
+      .update({
+        total_classes: newTotal,
+        attended_classes: newAttended,
+        last_attended: today,
+      })
+      .eq('id', subjectId)
+      .select();
+
+    console.log('subject update', { error, data });
+
+    if (error) {
+      alert('Subject update error: ' + error.message);
+      return;
+    }
+
+    setSubjects(prev =>
+      prev.map(s =>
+        s.id === subjectId
+          ? {
+              ...s,
+              totalClasses: data[0].total_classes ?? newTotal,
+              attendedClasses: data[0].attended_classes ?? newAttended,
+              lastAttended: data[0].last_attended ?? today,
+            }
+          : s
+      )
+    );
+    setAttendanceMarked(prev => ({ ...prev, [subjectId]: true }));
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -141,7 +315,9 @@ const AttendanceDashboard = () => {
           
           <SubjectManager 
             subjects={subjects}
-            onUpdateSubjects={setSubjects}
+            onAddSubject={addSubject}
+            onEditSubject={editSubject}
+            onDeleteSubject={deleteSubject}
           />
         </div>
 
@@ -174,7 +350,7 @@ const AttendanceDashboard = () => {
                   <div key={subject.id} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
                     <SubjectCard 
                       subject={subject} 
-                      onUpdateAttendance={updateAttendance}
+                      onUpdateAttendance={markAttendance}
                     />
                   </div>
                 ))}
@@ -187,7 +363,9 @@ const AttendanceDashboard = () => {
                   <p className="text-gray-500 mb-6">Get started by adding your first subject</p>
                   <SubjectManager 
                     subjects={subjects}
-                    onUpdateSubjects={setSubjects}
+                    onAddSubject={addSubject}
+                    onEditSubject={editSubject}
+                    onDeleteSubject={deleteSubject}
                   />
                 </div>
               )}
@@ -205,7 +383,7 @@ const AttendanceDashboard = () => {
             </TabsContent>
 
             <TabsContent value="reports">
-              <ReportsAnalytics subjects={subjects} />
+              <ReportsAnalytics subjects={subjects} attendanceRecords={attendanceRecords} />
             </TabsContent>
           </Tabs>
         </div>
@@ -215,7 +393,8 @@ const AttendanceDashboard = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           subjects={subjects}
-          onUpdateAttendance={updateAttendance}
+          onMarkAttendance={markAttendance}
+          attendanceMarked={attendanceMarked}
         />
       </div>
     </div>

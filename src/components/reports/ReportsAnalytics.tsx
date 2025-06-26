@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -40,9 +39,10 @@ interface Subject {
 
 interface ReportsAnalyticsProps {
   subjects: Subject[];
+  attendanceRecords: any[];
 }
 
-const ReportsAnalytics: React.FC<ReportsAnalyticsProps> = ({ subjects }) => {
+const ReportsAnalytics: React.FC<ReportsAnalyticsProps> = ({ subjects, attendanceRecords }) => {
   const analytics = useMemo(() => {
     const totalClasses = subjects.reduce((sum, subject) => sum + subject.totalClasses, 0);
     const totalAttended = subjects.reduce((sum, subject) => sum + subject.attendedClasses, 0);
@@ -80,6 +80,41 @@ const ReportsAnalytics: React.FC<ReportsAnalyticsProps> = ({ subjects }) => {
     };
   }, [subjects]);
 
+  // Group attendance by week and month
+  const { weeklyData, monthlyData } = useMemo(() => {
+    if (!attendanceRecords || attendanceRecords.length === 0) return { weeklyData: [], monthlyData: [] };
+    const weekMap: { [week: string]: { date: string, attended: number, total: number } } = {};
+    const monthMap: { [month: string]: { date: string, attended: number, total: number } } = {};
+    attendanceRecords.forEach((rec) => {
+      const dateObj = new Date(rec.date);
+      // Week key: year-weekNumber
+      const week = `${dateObj.getFullYear()}-W${Math.ceil((dateObj.getDate() - dateObj.getDay() + 1) / 7)}`;
+      // Month key: year-month
+      const month = `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
+      // Weekly
+      if (!weekMap[week]) weekMap[week] = { date: week, attended: 0, total: 0 };
+      weekMap[week].total += 1;
+      if (rec.status === 'present') weekMap[week].attended += 1;
+      // Monthly
+      if (!monthMap[month]) monthMap[month] = { date: month, attended: 0, total: 0 };
+      monthMap[month].total += 1;
+      if (rec.status === 'present') monthMap[month].attended += 1;
+    });
+    const weeklyData = Object.values(weekMap).map(w => ({
+      week: w.date,
+      attended: w.attended,
+      total: w.total,
+      percentage: w.total > 0 ? (w.attended / w.total) * 100 : 0
+    })).sort((a, b) => a.week.localeCompare(b.week));
+    const monthlyData = Object.values(monthMap).map(m => ({
+      month: m.date,
+      attended: m.attended,
+      total: m.total,
+      percentage: m.total > 0 ? (m.attended / m.total) * 100 : 0
+    })).sort((a, b) => a.month.localeCompare(b.month));
+    return { weeklyData, monthlyData };
+  }, [attendanceRecords]);
+
   const chartConfig = {
     attendance: {
       label: "Attendance %",
@@ -92,6 +127,8 @@ const ReportsAnalytics: React.FC<ReportsAnalyticsProps> = ({ subjects }) => {
   };
 
   const pieColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316'];
+
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
 
   if (subjects.length === 0) {
     return (
@@ -354,6 +391,40 @@ const ReportsAnalytics: React.FC<ReportsAnalyticsProps> = ({ subjects }) => {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Weekly/Monthly Toggle and Chart */}
+      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Attendance Analytics</CardTitle>
+            <div className="flex gap-2">
+              <button
+                className={`px-4 py-1 rounded-full font-semibold border transition-colors ${viewMode === 'weekly' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`}
+                onClick={() => setViewMode('weekly')}
+              >
+                Weekly
+              </button>
+              <button
+                className={`px-4 py-1 rounded-full font-semibold border transition-colors ${viewMode === 'monthly' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border-blue-600'}`}
+                onClick={() => setViewMode('monthly')}
+              >
+                Monthly
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={chartConfig} className="h-[300px]">
+            <BarChart data={viewMode === 'weekly' ? weeklyData : monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey={viewMode === 'weekly' ? 'week' : 'month'} fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis fontSize={12} tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="percentage" fill={viewMode === 'weekly' ? '#6366f1' : '#10b981'} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
         </CardContent>
       </Card>
     </div>

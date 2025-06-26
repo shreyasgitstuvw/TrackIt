@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,39 +17,30 @@ interface Subject {
 
 interface SubjectManagerProps {
   subjects: Subject[];
-  onUpdateSubjects: (subjects: Subject[]) => void;
-}
+  onAddSubject: (subjectData: Omit<Subject, 'id'>) => void;
+  onEditSubject: (subjectId: string, subjectData: Omit<Subject, 'id'>) => void;
+  onDeleteSubject: (subjectId: string) => void;
+  }
 
-const SubjectManager: React.FC<SubjectManagerProps> = ({ subjects, onUpdateSubjects }) => {
+const SubjectManager: React.FC<SubjectManagerProps> = ({ subjects, onAddSubject, onEditSubject, onDeleteSubject }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const handleAddSubject = (subjectData: Omit<Subject, 'id'>) => {
-    const newSubject: Subject = {
-      ...subjectData,
-      id: Date.now().toString(),
-    };
-    onUpdateSubjects([...subjects, newSubject]);
+    onAddSubject(subjectData);
     setIsFormOpen(false);
   };
 
   const handleEditSubject = (subjectData: Omit<Subject, 'id'>) => {
     if (!editingSubject) return;
-    
-    const updatedSubjects = subjects.map(subject =>
-      subject.id === editingSubject.id
-        ? { ...subjectData, id: editingSubject.id }
-        : subject
-    );
-    onUpdateSubjects(updatedSubjects);
+    onEditSubject(editingSubject.id, subjectData);
     setEditingSubject(null);
     setIsFormOpen(false);
   };
 
   const handleDeleteSubject = (subjectId: string) => {
-    const updatedSubjects = subjects.filter(subject => subject.id !== subjectId);
-    onUpdateSubjects(updatedSubjects);
+    onDeleteSubject(subjectId);
   };
 
   const openEditForm = (subject: Subject) => {

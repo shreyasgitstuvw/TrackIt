@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Target, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Subject {
   id: string;
@@ -24,7 +25,34 @@ interface GoalSettingProps {
 }
 
 const GoalSetting: React.FC<GoalSettingProps> = ({ subjects, onUpdateSubjects }) => {
+  const { user } = useAuth();
   const [editingGoals, setEditingGoals] = useState<{ [key: string]: number }>({});
+  const [loadingGoals, setLoadingGoals] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoadingGoals(true);
+    // Fetch goals from Supabase
+    supabase
+      .from('goals')
+      .select('*')
+      .eq('user_id', user.id)
+      .then(({ data, error }) => {
+        if (!error && data) {
+          // Map goals to subjects
+          onUpdateSubjects(
+            subjects.map(subject => {
+              const goal = data.find((g: any) => g.subject_id === subject.id);
+              return {
+                ...subject,
+                attendanceGoal: goal ? Number(goal.goal_percent) : subject.attendanceGoal || 75,
+              };
+            })
+          );
+        }
+        setLoadingGoals(false);
+      });
+  }, [user]);
 
   const handleGoalChange = (subjectId: string, goal: number) => {
     setEditingGoals(prev => ({
@@ -33,15 +61,25 @@ const GoalSetting: React.FC<GoalSettingProps> = ({ subjects, onUpdateSubjects })
     }));
   };
 
-  const saveGoal = (subjectId: string) => {
+  const saveGoal = async (subjectId: string) => {
     const goal = editingGoals[subjectId];
-    if (goal !== undefined) {
-      onUpdateSubjects(subjects.map(subject => 
-        subject.id === subjectId 
+    if (goal !== undefined && user) {
+      // Upsert goal in Supabase
+      await supabase
+        .from('goals')
+        .upsert([
+          {
+            user_id: user.id,
+            subject_id: subjectId,
+            goal_percent: goal,
+          }
+        ], { onConflict: ['user_id', 'subject_id'] });
+      // Update local state
+      onUpdateSubjects(subjects.map(subject =>
+        subject.id === subjectId
           ? { ...subject, attendanceGoal: goal }
           : subject
       ));
-      
       // Remove from editing state
       const newEditingGoals = { ...editingGoals };
       delete newEditingGoals[subjectId];

@@ -1,0 +1,1 @@
+ALTER TABLE attendance DROP CONSTRAINT IF EXISTS attendance_user_id_subject_id_date_key;

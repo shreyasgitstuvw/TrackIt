@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -21,6 +20,7 @@ interface SubjectCardProps {
 }
 
 const SubjectCard: React.FC<SubjectCardProps> = ({ subject, onUpdateAttendance }) => {
+  const [loading, setLoading] = useState(false);
   const attendancePercentage = (subject.attendedClasses / subject.totalClasses) * 100;
   
   const getAttendanceStatus = () => {
@@ -68,20 +68,30 @@ const SubjectCard: React.FC<SubjectCardProps> = ({ subject, onUpdateAttendance }
         <div className="flex gap-2 pt-2">
           <Button
             size="sm"
-            onClick={() => onUpdateAttendance(subject.id, true)}
+            onClick={async () => {
+              setLoading(true);
+              await onUpdateAttendance(subject.id, true);
+              setLoading(false);
+            }}
             className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+            disabled={loading}
           >
             <CheckCircle className="h-4 w-4 mr-1" />
-            Present
+            {loading ? 'Marking...' : 'Present'}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onUpdateAttendance(subject.id, false)}
+            onClick={async () => {
+              setLoading(true);
+              await onUpdateAttendance(subject.id, false);
+              setLoading(false);
+            }}
             className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+            disabled={loading}
           >
             <XCircle className="h-4 w-4 mr-1" />
-            Absent
+            {loading ? 'Marking...' : 'Absent'}
           </Button>
         </div>
       </CardContent>

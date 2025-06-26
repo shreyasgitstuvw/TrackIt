@@ -1,10 +1,11 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, XCircle, Calendar } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Subject {
   id: string;
@@ -19,20 +20,53 @@ interface MarkAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   subjects: Subject[];
-  onUpdateAttendance: (subjectId: string, attended: boolean) => void;
+  onMarkAttendance: (subjectId: string, attended: boolean) => Promise<void>;
+  attendanceMarked: { [subjectId: string]: boolean };
 }
 
 const MarkAttendanceModal: React.FC<MarkAttendanceModalProps> = ({
   isOpen,
   onClose,
   subjects,
-  onUpdateAttendance
+  onMarkAttendance,
+  attendanceMarked
 }) => {
   const [selectedDate] = useState(new Date().toISOString().split('T')[0]);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const handleMarkAttendance = (subjectId: string, attended: boolean) => {
-    onUpdateAttendance(subjectId, attended);
+  // Supabase attendance function (if you want to use it)
+  const markAttendance = async (subjectId: string, date: string, status: 'present' | 'absent') => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('attendance')
+      .upsert([{ user_id: user.id, subject_id: subjectId, date, status }], { onConflict: ['user_id', 'subject_id', 'date'] });
+    // Handle error/success
+  };
+
+  // Example: fetch attendance (if needed)
+  const fetchAttendance = async (startDate: string, endDate: string) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', startDate)
+      .lte('date', endDate);
+    // Use data for calendar/stats
+  };
+
+  // Example: upsert goal (if needed)
+  const upsertGoal = async (subjectId: string | null, goalPercent: number) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('goals')
+      .upsert([{ user_id: user.id, subject_id: subjectId, goal_percent: goalPercent }], { onConflict: ['user_id', 'subject_id'] });
+    // Handle error/success
+  };
+
+  const handleMarkAttendance = async (subjectId: string, attended: boolean) => {
+    await onMarkAttendance(subjectId, attended);
     const subject = subjects.find(s => s.id === subjectId);
     toast({
       title: "Attendance Marked",
@@ -77,6 +111,7 @@ const MarkAttendanceModal: React.FC<MarkAttendanceModalProps> = ({
                       size="sm"
                       onClick={() => handleMarkAttendance(subject.id, true)}
                       className="bg-green-500 hover:bg-green-600 text-white"
+                      disabled={attendanceMarked[subject.id]}
                     >
                       <CheckCircle className="h-4 w-4 mr-1" />
                       Present
@@ -86,6 +121,7 @@ const MarkAttendanceModal: React.FC<MarkAttendanceModalProps> = ({
                       variant="outline"
                       onClick={() => handleMarkAttendance(subject.id, false)}
                       className="border-red-300 text-red-600 hover:bg-red-50"
+                      disabled={attendanceMarked[subject.id]}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
                       Absent
